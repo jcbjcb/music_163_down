@@ -4,6 +4,7 @@ import urllib3
 import os
 import time
 import ssl
+import threadpool
 ssl._create_default_https_context = ssl._create_unverified_context
 urllib3.disable_warnings()
 
@@ -69,7 +70,11 @@ def load_html(url):
     r = requests.get(url, headers=headers)
     return r.text
 
-def load_music_mp3(id,name):
+def load_music_mp3(music_id, name):
+
+    print(music_id)
+    print(name)
+
     headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
                'Host': 'music.163.com',
                "Accept-Encoding": "gzip, deflate, br",
@@ -77,7 +82,7 @@ def load_music_mp3(id,name):
                "Upgrade-Insecure-Requests": "1",
                'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'}
 
-    url = "https://music.163.com/song/media/outer/url?id="+id+".mp3"
+    url = "https://music.163.com/song/media/outer/url?id="+music_id+".mp3"
 
     print(url)
 
@@ -87,14 +92,15 @@ def load_music_mp3(id,name):
     # with open("163/downMusic.html", "ab+") as f:
     #     f.write(a.encode())
 
-    path = "163/" + name + ".mp3"
+    path = "top_hot/" + name + ".mp3"
     if os.path.exists(path):
         print(name+".mp3 已存在")
         return
     count = 0
     while count < 3:
         try:
-            r = requests.get(url, headers=headers,timeout=30)
+            time.sleep(3)
+            r = requests.get(url, headers=headers, timeout=30)
             url = r.url
             print(url)
             if url.startswith("https://music.163.com/404"):
@@ -106,7 +112,7 @@ def load_music_mp3(id,name):
 
     a ="<a href='"+url+"' download='"+name+"'>"+name+"</a><br/>\r\n"
 
-    with open("163/downMusic.html", "ab+") as f:
+    with open("top_hot/downMusic.html", "ab+") as f:
         f.write(a.encode())
 
     down_file(url, name)
@@ -150,7 +156,7 @@ def load_music_mp3(id,name):
     #     f.write(http.request('GET', url, headers=headers))
     pass
 def down_file(url,name):
-    path = "163/"+name+".mp3"
+    path = "top_hot/"+name+".mp3"
     if os.path.exists(path):
         return
 
@@ -164,6 +170,7 @@ def down_file(url,name):
     count = 0
     while count < 3:
         try:
+            time.sleep(3)
             r = requests.get(url,headers=headers,stream=True,timeout=60)
             print(r.status_code)
             if(r.status_code == 200):
@@ -182,25 +189,40 @@ def down_file(url,name):
     pass
 
 if __name__ == "__main__":
-    # down_file("https://m10.music.126.net/20190106191843/cd2e7061ed37bcfbc4eb2e80310dda08/ymusic/0652/5353/0059/1861fad1b1d9a54a42587385c5e37bdd.mp3","test")
+
+    print("程序开始执行")
 
     html_parse = MusicHtmlParse()
-    html = load_html('https://music.163.com/discover/toplist?id=19723756')
+    html = load_html('https://music.163.com/discover/toplist?id=3778678')
     # print(html)
     html_parse.feed(html)
-    print(len(html_parse.musics_id))
-    print(html_parse.musics_name[0:100])
+    # print(len(html_parse.musics_id))
+    # print(html_parse.musics_name[0:100])
     html_header = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>musics auto down</title></head><body>'
-    with open("163/downMusic.html", "ab+") as f:
+    with open("top_hot/downMusic.html", "ab+") as f:
         f.write(html_header.encode())
+    params = []
     for i in range(0, len(html_parse.musics_id)):
-        load_music_mp3(html_parse.musics_id[i],html_parse.musics_name[i])
-        time.sleep(3)
+        id_name = {'music_id': html_parse.musics_id[i], 'name': html_parse.musics_name[i]}
+        params.append((None, id_name))
+        #单线程下载
+        # load_music_mp3(html_parse.musics_id[i],html_parse.musics_name[i])
+        # time.sleep(3)
+
+    print(params)
+    #多线程下载
+    pool = threadpool.ThreadPool(10)
+    thread_pool_requests = threadpool.makeRequests(load_music_mp3, params)
+    [pool.putRequest(req) for req in thread_pool_requests]
+    pool.wait()
+
     # scripts="<script>( function(){var a = document.getElementsByTagName('a');for (var i =0;i<a.length ;i++ ){console.log(i);a[i].click();}})()</script>"
     # with open("163/downMusic.html", "ab+") as f:
     #     f.write(scripts.encode())
 
     html_footer = '</body></html>'
-    with open("163/downMusic.html", "ab+") as f:
+    with open("top_hot/downMusic.html", "ab+") as f:
         f.write(html_footer.encode())
     html_parse.close()
+
+    print("程序执行完成")
