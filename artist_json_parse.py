@@ -1,24 +1,33 @@
+import json
 import requests
 import urllib3
 import os
 import time
 import ssl
 import threadpool
-from music_html_parse import MusicHtmlParse
-from music_column_html_parse import MusicColumnHtmlParse
-from page_html_parse import PageHtmlParse
+from artist_html_parse import ArtistZJHtmlParse , ArtistHtmlParse
 
 ssl._create_default_https_context = ssl._create_unverified_context
 urllib3.disable_warnings()
 
 music_host = "https://music.163.com"
-music_parent_path = "music/"
-artist_path = "music/artist"
+music_parent_path = "music/artist/"
+base_zj_host = 'https://music.163.com/artist/album?limit=1000&offset=0&id='
+zj_host = "https://music.163.com/album?id="
+
 
 pool = threadpool.ThreadPool(20)
 
 headers = {'Accept': 'text/html', 'Host': 'music.163.com',
            'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36'}
+
+
+class ArtistJsonParse:
+
+    def load_data(self):
+        with open("artist.json","rb") as f:
+            load_dict = json.load(f)
+        return load_dict
 
 
 def load_html(url):
@@ -62,7 +71,7 @@ def load_music_mp3(music_id, name,save_path):
     down_file(url, name,path)
 
 
-def down_file(url,name,path):
+def down_file(url, name, path):
     if os.path.exists(path):
         return
 
@@ -97,31 +106,15 @@ def down_file(url,name,path):
     pass
 
 
-#加载歌单列表url 并创建本地目录
-def load_all_column(url):
-    music_column_html_parse = MusicColumnHtmlParse()
+def load_zj(url,save_path):
+    html_parse = ArtistZJHtmlParse()
     html = ''
     html = load_html(url)
-    music_column_html_parse.feed(html)
-    print(music_column_html_parse.musics_path_url)
-    print(music_column_html_parse.musics_path_name)
-    for i in range(0, len(music_column_html_parse.musics_path_url)):
-        file_name = music_column_html_parse.musics_path_name[i]
-        file_name = file_name.replace("|", " ")
-        file_name = file_name.replace("/", " ")
-        file_name = file_name.replace("\\", " ")
-        file_name = file_name.replace(":", " ")
-        file_name = file_name.replace("*", " ")
-        file_name = file_name.replace("?", " ")
-        file_name = file_name.replace('"', " ")
-        file_name = file_name.replace('<', " ")
-        file_name = file_name.replace('>', " ")
-        music_save_path = music_parent_path+file_name+"/"
-        make_save_path(music_save_path)
-        uri = music_host + music_column_html_parse.musics_path_url[i]
-        print(uri)
-        print(music_save_path)
-        load_music_uri(uri,music_save_path)
+    html_parse.feed(html)
+    # print(html_parse.musics_zj_id)
+    # print(html_parse.musics_zj_name)
+    for i in range(0, len(html_parse.musics_zj_id)):
+        load_zj_music_uri(zj_host + html_parse.musics_zj_id[i], save_path+html_parse.musics_zj_name[i]+"/")
 
 
 #创建存储目录
@@ -129,12 +122,17 @@ def make_save_path(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
+
 #抓取歌曲下载路劲
-def load_music_uri(url,save_path):
-    html_parse = MusicHtmlParse()
+def load_zj_music_uri(url,save_path):
+    make_save_path(save_path)
+
+    html_parse = ArtistHtmlParse()
     html = ''
     html = load_html(url)
     html_parse.feed(html)
+    # print(html_parse.musics_id)
+    # print(html_parse.musics_name)
     params = []
     for i in range(0, len(html_parse.musics_id)):
         name = html_parse.musics_name[i]
@@ -150,77 +148,24 @@ def load_music_uri(url,save_path):
         id_name_path = {'music_id': html_parse.musics_id[i], 'name': name, "save_path": save_path}
         params.append((None, id_name_path))
 
-
-
     thread_pool_requests = threadpool.makeRequests(load_music_mp3, params)
     [pool.putRequest(req) for req in thread_pool_requests]
     pool.wait()
 
     return
 
-#获取分页页码
-def load_page(url):
-    page_html_parse = PageHtmlParse()
-    html = ''
-    html = load_html(url)
-    page_html_parse.feed(html)
-    result = {
-        "params": page_html_parse.params,
-        "pages": page_html_parse.pages,
-    }
-    page_html_parse.close()
-    return result
-
 
 if __name__ == "__main__":
+    json_parse = ArtistJsonParse()
+    load_dict = json_parse.load_data()
 
-    print("程序开始执行")
+    urls = []
+    for i in range(0,len(load_dict)):
+        for j in range(0, len(load_dict[i]['artists'])):
+            # print(load_dict[i]['artists'][j]["id"])
+            # print(load_dict[i]['artists'][j]["name"])
+            # urls.append(base_host+str(load_dict[i]['artists'][j]["id"]))
+            load_zj(base_zj_host+str(load_dict[i]['artists'][j]["id"]), music_parent_path + load_dict[i]['artists'][j]["name"]+"/")
 
-    urls = ["https://music.163.com/discover/playlist", "https://music.163.com/discover/toplist"]
 
-    all_urls = []
-    print(urls)
-    for uri in urls:
-        result =load_page(uri)
-        if result["pages"] == 0:
-            all_urls.append(uri)
-        else:
-            for i in range(0,result["pages"]):
-                url_params = result["params"][0:result["params"].index("offset=")+7]
-                all_urls.append(uri+"?"+url_params+str((i*35)))
 
-    print(all_urls)
-    for real_uri in all_urls:
-        load_all_column(uri)
-
-    # html_parse = MusicHtmlParse()
-    # html = load_html('https://music.163.com/discover/toplist?id=3778678')
-    # html_parse.feed(html)
-    # html_header = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>musics auto down</title></head><body>'
-    # with open("top_hot/downMusic.html", "ab+") as f:
-    #     f.write(html_header.encode())
-    # params = []
-    # for i in range(0, len(html_parse.musics_id)):
-    #     id_name = {'music_id': html_parse.musics_id[i], 'name': html_parse.musics_name[i]}
-    #     params.append((None, id_name))
-    #     #单线程下载
-    #     # load_music_mp3(html_parse.musics_id[i],html_parse.musics_name[i])
-    #     # time.sleep(3)
-    #
-    # print(params)
-    # #多线程下载
-    # pool = threadpool.ThreadPool(10)
-    # thread_pool_requests = threadpool.makeRequests(load_music_mp3, params)
-    # [pool.putRequest(req) for req in thread_pool_requests]
-    # pool.wait()
-
-    # scripts="<script>( function(){var a = document.getElementsByTagName('a');for (var i =0;i<a.length ;i++ ){console.log(i);a[i].click();}})()</script>"
-    # with open("163/downMusic.html", "ab+") as f:
-    #     f.write(scripts.encode())
-
-    # html_footer = '</body></html>'
-    # with open("top_hot/downMusic.html", "ab+") as f:
-    #     f.write(html_footer.encode())
-    # html_parse.close()
-
-    print("程序执行完成")
