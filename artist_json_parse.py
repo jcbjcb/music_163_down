@@ -114,7 +114,18 @@ def load_zj(url,save_path):
     # print(html_parse.musics_zj_id)
     # print(html_parse.musics_zj_name)
     for i in range(0, len(html_parse.musics_zj_id)):
-        load_zj_music_uri(zj_host + html_parse.musics_zj_id[i], save_path+html_parse.musics_zj_name[i]+"/")
+        name = html_parse.musics_zj_name[i]
+        name = name.replace("|", " ")
+        name = name.replace("/", " ")
+        name = name.replace("\\", " ")
+        name = name.replace(":", " ")
+        name = name.replace("*", " ")
+        name = name.replace("?", " ")
+        name = name.replace('"', " ")
+        name = name.replace('<', " ")
+        name = name.replace('>', " ")
+
+        load_zj_music_uri(zj_host + html_parse.musics_zj_id[i], save_path+name+"/")
 
 
 #创建存储目录
@@ -165,7 +176,18 @@ if __name__ == "__main__":
             # print(load_dict[i]['artists'][j]["id"])
             # print(load_dict[i]['artists'][j]["name"])
             # urls.append(base_host+str(load_dict[i]['artists'][j]["id"]))
-            load_zj(base_zj_host+str(load_dict[i]['artists'][j]["id"]), music_parent_path + load_dict[i]['artists'][j]["name"]+"/")
+
+            name = load_dict[i]['artists'][j]["name"]
+            name = name.replace("|", " ")
+            name = name.replace("/", " ")
+            name = name.replace("\\", " ")
+            name = name.replace(":", " ")
+            name = name.replace("*", " ")
+            name = name.replace("?", " ")
+            name = name.replace('"', " ")
+            name = name.replace('<', " ")
+            name = name.replace('>', " ")
+            load_zj(base_zj_host+str(load_dict[i]['artists'][j]["id"]), music_parent_path + name +"/")
 
 
 
